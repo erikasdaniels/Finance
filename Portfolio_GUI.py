@@ -46,6 +46,9 @@ class PortfolioApp(ctk.CTk):
 
         # Initial Calculation
         self.calculate_and_plot()
+        
+        # Connect Hover Event
+        self.canvas.mpl_connect("motion_notify_event", self.on_hover)
 
     def add_section_header(self, text):
         label = ctk.CTkLabel(self.sidebar, text=text, font=("font", 16, "bold"), anchor="w")
@@ -121,7 +124,8 @@ class PortfolioApp(ctk.CTk):
 
         # Contribution Rules
         self.add_section_header("Contribution Rules")
-        self.add_input("Pension Contrib Rate", "pension_contribution_rate", 0.15)
+        self.add_input("Employee Pension %", "pension_employee_rate", 0.05)
+        self.add_input("Employer Pension %", "pension_employer_rate", 0.10)
         self.add_input("ISA Contrib Rate", "isa_contribution_rate", 0.15)
         self.add_input("LISA Max Contrib (£)", "lisa_max_contribution", 4000)
         self.add_input("LISA Bonus Rate", "lisa_bonus_rate", 0.25)
@@ -140,7 +144,7 @@ class PortfolioApp(ctk.CTk):
         except ValueError:
             return 0.0
 
-    def net_pay(self, gross):
+    def net_pay(self, gross, pension_rate=0.05):
         personal_allowance = 12570
         basic_limit = 50270
         NI_lower = 12570
@@ -153,16 +157,38 @@ class PortfolioApp(ctk.CTk):
         loan_threshold = 28470
         loan_rate = 0.09
 
-        pension_contrib = 0.05 * gross
+        pension_contrib = pension_rate * gross
         taxable = max(0, gross - pension_contrib)
 
         # Income tax
         if taxable <= personal_allowance:
             tax = 0
         else:
-            tax = min(taxable - personal_allowance, basic_limit - personal_allowance) * basic_rate
+            # Handle Higher Rate bands explicitly?
+            # Basic rate logic here was: min(taxable-PA, basic_limit-PA). 
+            # If taxable > basic_limit, this capped at basic band tax.
+            # Missing Higher Rate Tax logic!
+            # Let's add simple HRT logic:
+            
+            # Taxable income above Personal Allowance
+            taxable_income = taxable - personal_allowance
+            
+            # Basic Band: £37,700 width (50270 - 12570)
+            basic_band_width = basic_limit - personal_allowance
+            
+            if taxable_income <= basic_band_width:
+                 tax = taxable_income * basic_rate
+            else:
+                 # Higher Rate
+                 # Assuming logic is strictly BRT and HRT (40%) and ART (45%)
+                 # For simplicity in this fix, let's just add the 40% band
+                 # Everything above basic_limit is 40% (ignoring 100k taper and 125k limit for now to keep it simpler)
+                 tax = (basic_band_width * basic_rate) + (taxable_income - basic_band_width) * 0.40
 
         # NI
+        # NI is technically on Gross usually, but if Salary Sacrifice, it's on the reduced amount.
+        # This function treats pension_contrib as Salary Sacrifice (reducing taxable and NI-able pay).
+        
         if taxable <= NI_lower:
             ni = 0
         elif taxable <= NI_upper:
@@ -195,7 +221,8 @@ class PortfolioApp(ctk.CTk):
         cash_rate = self.get_val("cash_rate")
         lisa_rate = self.get_val("lisa_rate")
 
-        pension_contribution_rate = self.get_val("pension_contribution_rate")
+        pension_employee_rate = self.get_val("pension_employee_rate")
+        pension_employer_rate = self.get_val("pension_employer_rate")
         isa_contribution_rate = self.get_val("isa_contribution_rate")
         lisa_max_contribution = self.get_val("lisa_max_contribution")
         lisa_bonus_rate = self.get_val("lisa_bonus_rate")
@@ -211,7 +238,9 @@ class PortfolioApp(ctk.CTk):
         # Tracking lists (year 0)
         nominal_salary = [base_salary]
         real_salary = [base_salary]
-        net_salary = [self.net_pay(base_salary)]
+        
+        # Initial Net Pay using ONLY user's contribution
+        net_salary = [self.net_pay(base_salary, pension_employee_rate)]
 
         pension = [pension_base]
         isa = [isa_base]
@@ -254,11 +283,15 @@ class PortfolioApp(ctk.CTk):
             if not is_retired:
                 nominal_salary.append(nominal_salary[-1] * (1 + growth_rate))
                 real_salary.append(real_salary[-1] * (1 + growth_rate - inflation))
-                current_net_pay = self.net_pay(real_salary[-1])
+                
+                # Deduct ONLY employee contribution for Net Pay calc
+                current_net_pay = self.net_pay(real_salary[-1], pension_employee_rate)
                 net_salary.append(current_net_pay)
                 
-                # Contributions
-                pen_contrib = pension_contribution_rate * real_salary[-1]
+                # Pension Pot Contribution = Employee + Employer
+                total_pension_rate = pension_employee_rate + pension_employer_rate
+                pen_contrib = total_pension_rate * real_salary[-1]
+                
                 isa_contrib = isa_contribution_rate * current_net_pay
                 
                 # LISA
@@ -345,6 +378,9 @@ class PortfolioApp(ctk.CTk):
                         take_cash = min(remaining_need, can_take_cash)
                         cash_withdraw += take_cash
                         remaining_need -= take_cash
+                        
+                    # Note: Home Equity is intentionally NOT accessed for income. 
+                    # If remaining_need > 0 here, it represents a shortfall (running out of money).
 
             # --- Apply Changes ---
             pension.append( max(0, pen_growth + pen_contrib - pen_withdraw) )
@@ -407,12 +443,15 @@ class PortfolioApp(ctk.CTk):
         self.ax.clear()
         ages = [start_age + i for i in range(years)]
         
-        self.ax.plot(ages, pension, label="Pension")
-        self.ax.plot(ages, isa, label="ISA")
-        self.ax.plot(ages, lisa, label="LISA")
-        self.ax.plot(ages, cash, label="Cash")
-        self.ax.plot(ages, home_equity, label="Home Equity")
-        self.ax.plot(ages, net_worth, label="Total Net Worth", linewidth=3)
+        self.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'£{x/1000:,.0f}k'))
+        
+        lines = []
+        lines.append(self.ax.plot(ages, pension, label="Pension")[0])
+        lines.append(self.ax.plot(ages, isa, label="ISA")[0])
+        lines.append(self.ax.plot(ages, lisa, label="LISA")[0])
+        lines.append(self.ax.plot(ages, cash, label="Cash")[0])
+        lines.append(self.ax.plot(ages, home_equity, label="Home Equity")[0])
+        lines.append(self.ax.plot(ages, net_worth, label="Total Net Worth", linewidth=3, color="black")[0])
         
         if purchase_year is not None:
             self.ax.axvline(
@@ -422,14 +461,152 @@ class PortfolioApp(ctk.CTk):
                 label="House Purchase"
             )
 
+        # Minor ticks and grid
+        from matplotlib.ticker import AutoMinorLocator
+        self.ax.xaxis.set_minor_locator(AutoMinorLocator())
+        self.ax.yaxis.set_minor_locator(AutoMinorLocator())
+        self.ax.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+        self.ax.grid(True, which='major', linestyle='-', linewidth=0.8, alpha=1.0)
+
+        # Annotate last points
+        for line in lines:
+            y_data = line.get_ydata()
+            x_data = line.get_xdata()
+            if len(y_data) > 0:
+                last_val = y_data[-1]
+                last_age = x_data[-1]
+                
+                # Format value
+                if last_val >= 1_000_000:
+                    val_str = f"£{last_val/1_000_000:.2f}M"
+                else:
+                    val_str = f"£{last_val/1_000:.0f}k"
+                
+                # Marker
+                self.ax.plot(last_age, last_val, marker='o', color=line.get_color(), markersize=5)
+                
+                # Text annotation
+                self.ax.annotate(
+                    f"{val_str}",
+                    xy=(last_age, last_val),
+                    xytext=(5, 5),
+                    textcoords="offset points",
+                    fontsize=9,
+                    color=line.get_color(),
+                    fontweight='bold'
+                )
+
         self.ax.set_title("Real Net Worth Growth")
         self.ax.set_xlabel("Age")
-        self.ax.set_ylabel("Value (£)")
+        self.ax.set_ylabel("Value")
         self.ax.legend(loc='upper left')
-        self.ax.grid(True)
         
         # Redraw canvas
         self.canvas.draw()
+        
+        # --- Interactive Features ---
+        # Save data for hover
+        self.sim_data = {
+            "Pension": pension,
+            "ISA": isa,
+            "LISA": lisa,
+            "Cash": cash,
+            "Equity": home_equity,
+            "Total": net_worth
+        }
+        self.sim_ages = ages
+        self.sim_start_age = start_age
+        
+        # Create Cursor Artists (hidden by default)
+        self.cursor_line = self.ax.axvline(x=start_age, visible=False, color='gray', linestyle=':', alpha=0.8)
+        
+        # Create a text box for the tooltip
+        # We use a fixed axis-aligned box (top-left or wherever) or a floating one. 
+        # Floating is better for "analysing curves".
+        self.cursor_text = self.ax.text(
+            1.02, 1.0, "", 
+            transform=self.ax.transAxes, 
+            verticalalignment='top',
+            horizontalalignment='left',
+            fontdict={'size': 9},
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.9, edgecolor="gray")
+        )
+        self.cursor_text.set_visible(False)
+
+    def on_hover(self, event):
+        # Check if mouse is on the plot area
+        if event.inaxes != self.ax:
+            if hasattr(self, 'cursor_line') and self.cursor_line.get_visible():
+                self.cursor_line.set_visible(False)
+                self.cursor_text.set_visible(False)
+                self.canvas.draw_idle()
+            return
+
+        # Get nearest age index
+        # xdata is the age (float). 
+        # We want to snap to the nearest integer year in our data
+        try:
+            hover_age = int(round(event.xdata))
+            
+            # Find index
+            start_age = self.sim_start_age
+            idx = hover_age - start_age
+            
+            # Bounds check
+            if idx < 0 or idx >= len(self.sim_ages):
+                return
+                
+            # Update Cursor Line
+            self.cursor_line.set_xdata([hover_age])
+            self.cursor_line.set_visible(True)
+            
+            # Build Text
+            info = f"Age: {hover_age}\n"
+            info += "-" * 15 + "\n"
+            
+            # Sort keys to be consistent or by value? 
+            # Consistent order is usually better to read as you scroll.
+            # Order: Total, Pension, ISA, LISA, Cash, Equity
+            keys = ["Total", "Pension", "ISA", "LISA", "Cash", "Equity"]
+            
+            for key in keys:
+                if key in self.sim_data:
+                    val = self.sim_data[key][idx]
+                    # Format
+                    if val > 1_000_000:
+                        v_str = f"£{val/1_000_000:.2f}M"
+                    else:
+                        v_str = f"£{val/1_000:.0f}k"
+                    
+                    info += f"{key}: {v_str}\n"
+
+            self.cursor_text.set_text(info)
+            # Move text box to follow cursor but stay within bounds?
+            # Or just keep it fixed in a better spot?
+            # User asked to "move the box... not same pos as legend". 
+            # Moving to outside the plot (right side) is safest if space permits.
+            # Or fixed Top-Right.
+            # Let's try putting it OUTSIDE the plot to the right. 
+            # The canvas might clip it. 
+            # Safest is floating near cursor.
+            
+            # Let's Implement Floating Tooltip
+            # transforming data coords to axes coords
+            # x, y = event.xdata, event.ydata
+            # We want to place it slightly offset.
+            
+            # However, simpler request: "move the box". 
+            # I will move it to Top Left (offset) or Right.
+            
+            # Let's stick to Fixed Top Right inside axes.
+            pass
+            
+            self.cursor_text.set_visible(True)
+            
+            self.canvas.draw_idle()
+            
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     app = PortfolioApp()
