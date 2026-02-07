@@ -117,6 +117,7 @@
         input[type="range"] {
             width: 100%;
             -webkit-appearance: none;
+            appearance: none;
             background: transparent;
         }
 
@@ -146,7 +147,7 @@
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
-            overflow: hidden;
+            overflow-y: auto;
         }
 
         .chart-container {
@@ -190,6 +191,127 @@
             margin-top: 0.25rem;
         }
 
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            gap: 1.5rem;
+            height: 100%;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* Receipt Card */
+        .receipt-view {
+            display: grid;
+            grid-template-columns: 350px 550px;
+            gap: 3rem;
+            align-items: start;
+            justify-content: center;
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .receipt-age-picker {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .error-message {
+            color: #ef4444;
+            font-size: 0.8rem;
+            margin-top: 1rem;
+            display: none;
+            padding: 0.5rem;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 4px;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .receipt-card {
+            background: #fff;
+            color: #1e293b;
+            padding: 2rem;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            width: 550px;
+            /* Increased to accommodate extra column */
+        }
+
+        .receipt-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: repeating-linear-gradient(90deg, #1e293b, #1e293b 10px, transparent 10px, transparent 20px);
+        }
+
+        .receipt-header {
+            text-align: center;
+            border-bottom: 1px dashed #cbd5e1;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+        }
+
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .receipt-divider {
+            border-bottom: 1px dashed #cbd5e1;
+            margin: 1rem 0;
+        }
+
+        .receipt-total {
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-top: 1rem;
+        }
+
+        .receipt-age-picker {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
         @media (max-width: 1024px) {
             body {
                 flex-direction: column;
@@ -200,7 +322,7 @@
             aside {
                 width: 100%;
                 height: auto;
-                border-right: none;
+                border: none;
                 border-bottom: 1px solid var(--border);
             }
 
@@ -208,12 +330,30 @@
                 height: auto;
             }
 
+            .kpi-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
             .chart-container {
                 height: 500px;
             }
 
-            .kpi-row {
-                grid-template-columns: repeat(2, 1fr);
+            .receipt-view {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+
+            .receipt-card {
+                order: 2;
+                width: 100%;
+                min-width: 0;
+                /* Allow it to shrink on mobile */
+                padding: 1rem;
+                font-size: 0.8rem;
+            }
+
+            .receipt-age-picker {
+                order: 1;
             }
         }
     </style>
@@ -233,28 +373,62 @@
     </aside>
 
     <main>
-        <div class="kpi-row">
-            <div class="kpi-card">
-                <div class="kpi-label">Final Net Worth</div>
-                <div class="kpi-value" id="kpi-networth">-</div>
-                <div class="kpi-sub" id="kpi-age">Age: -</div>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('chart')">Analytics Chart</button>
+            <button class="tab-btn" onclick="showTab('receipt')">Tax Receipt</button>
+        </div>
+
+        <div id="chart-tab" class="tab-content active">
+            <div class="kpi-row">
+                <div class="kpi-card">
+                    <div class="kpi-label">Final Net Worth</div>
+                    <div class="kpi-value" id="kpi-networth">-</div>
+                    <div class="kpi-sub" id="kpi-age">Age: -</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Pension Pot</div>
+                    <div class="kpi-value" id="kpi-pension">-</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Liquid Assets (ISA/Cash)</div>
+                    <div class="kpi-value" id="kpi-liquid">-</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Property Equity</div>
+                    <div class="kpi-value" id="kpi-equity">-</div>
+                </div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Pension Pot</div>
-                <div class="kpi-value" id="kpi-pension">-</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Liquid Assets (ISA/Cash)</div>
-                <div class="kpi-value" id="kpi-liquid">-</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Property Equity</div>
-                <div class="kpi-value" id="kpi-equity">-</div>
+
+            <div class="chart-container">
+                <canvas id="portfolioChart"></canvas>
             </div>
         </div>
 
-        <div class="chart-container">
-            <canvas id="portfolioChart"></canvas>
+        <div id="receipt-tab" class="tab-content">
+            <div class="receipt-view">
+                <div class="receipt-age-picker">
+                    <div class="section-header" style="margin-top: 0;">Projection Age</div>
+                    <div class="input-group">
+                        <div class="input-header">
+                            <span class="input-label">Select Age</span>
+                            <span class="input-val" id="receipt-age-val">22</span>
+                        </div>
+                        <input type="range" id="receipt-age-slider" min="22" max="62" step="1" value="22">
+                    </div>
+
+                    <div class="section-header">Budget Splits (%)</div>
+                    <div id="split-controls">
+                        <!-- Split inputs injected here -->
+                    </div>
+                    <div id="split-error" class="error-message">
+                        Total must add up to 100%!
+                    </div>
+                </div>
+
+                <div class="receipt-card" id="tax-receipt">
+                    <!-- Receipt content injected here -->
+                </div>
+            </div>
         </div>
     </main>
 
@@ -288,8 +462,8 @@
                 { header: "Contribution Rules" },
                 { id: "pension_employee_rate", label: "Employee Pension %", type: "number", value: 5, step: 0.5, isPercentage: true },
                 { id: "pension_employer_rate", label: "Employer Pension %", type: "number", value: 10, step: 0.5, isPercentage: true },
-                { id: "isa_contribution_rate", label: "ISA Contrib Rate %", type: "number", value: 15, step: 0.5, isPercentage: true },
-                { id: "lisa_max_contribution", label: "LISA Max Contrib (£)", type: "number", value: 4000 },
+                { id: "isa_contribution_rate", label: "ISA Contribution Rate %", type: "number", value: 15, step: 0.5, isPercentage: true },
+                { id: "lisa_max_contribution", label: "LISA Maximum Contribution (£)", type: "number", value: 4000 },
                 { id: "lisa_bonus_rate", label: "LISA Bonus Rate %", type: "number", value: 25, isPercentage: true },
 
                 { header: "Property Assumptions" },
@@ -560,7 +734,7 @@
             // Net Worth
             const net_worth = pension.map((p, i) => p + isa[i] + cash[i] + lisa[i] + home_equity[i]);
 
-            return { ages, pension, isa, lisa, cash, home_equity, net_worth };
+            return { ages, pension, isa, lisa, cash, home_equity, net_worth, real_salary, nominal_salary };
         }
 
         function initUI() {
@@ -761,9 +935,232 @@
             document.getElementById('kpi-age').innerText = `At Age ${data.ages[last]}`;
         }
 
-        // Init
+        // --- New Logic for Tax Receipt ---
+
+        let budgetSplits = {
+            needs: 60,
+            isa: 15,
+            savings: 5,
+            wants: 20
+        };
+
+        function updateBudgetSplitsFromSettings() {
+            // Automatically sync ISA contribution from core settings if user hasn't manually overridden or for initial load
+            const coreIsaRate = getVal('isa_contribution_rate') * 100; // Use isa_contribution_rate from CONFIG
+            budgetSplits.isa = Math.round(coreIsaRate);
+
+            // Adjust others proportionally to keep 100%
+            const remaining = 100 - budgetSplits.isa;
+            const currentNonIsaTotal = budgetSplits.needs + budgetSplits.savings + budgetSplits.wants;
+
+            if (currentNonIsaTotal > 0) {
+                budgetSplits.needs = Math.round((budgetSplits.needs / currentNonIsaTotal) * remaining);
+                budgetSplits.savings = Math.round((budgetSplits.savings / currentNonIsaTotal) * remaining);
+                budgetSplits.wants = 100 - budgetSplits.isa - budgetSplits.needs - budgetSplits.savings;
+            }
+
+            // Refresh inputs
+            const container = document.getElementById('split-controls');
+            if (container) {
+                container.innerHTML = '';
+                initSplitControls();
+            }
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tabId + '-tab').classList.add('active');
+
+            if (tabId === 'receipt') renderReceipt();
+        }
+
+        function initSplitControls() {
+            const container = document.getElementById('split-controls');
+            const keys = Object.keys(budgetSplits);
+
+            keys.forEach(key => {
+                const group = document.createElement('div');
+                group.className = 'input-group';
+                group.style.display = 'flex';
+                group.style.alignItems = 'center';
+                group.style.justifyContent = 'space-between';
+                group.style.marginBottom = '0.5rem';
+
+                const label = document.createElement('span');
+                label.className = 'input-label';
+                label.innerText = key === 'isa' ? 'ISA' : key.charAt(0).toUpperCase() + key.slice(1);
+
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.min = 0;
+                input.max = 100;
+                input.value = budgetSplits[key];
+                input.style.width = '70px';
+                input.style.textAlign = 'right';
+                input.addEventListener('input', (e) => updateSplits(key, parseInt(e.target.value) || 0));
+
+                group.appendChild(label);
+                group.appendChild(input);
+                container.appendChild(group);
+            });
+        }
+
+        function updateSplits(changedKey, newValue) {
+            budgetSplits[changedKey] = newValue;
+
+            const total = Object.values(budgetSplits).reduce((a, b) => a + b, 0);
+            const errorEl = document.getElementById('split-error');
+
+            if (total !== 100) {
+                errorEl.style.display = 'block';
+                errorEl.innerText = `Total is ${total}% (Must be 100%)`;
+            } else {
+                errorEl.style.display = 'none';
+                renderReceipt();
+            }
+        }
+
+        function calculateDetailedTaxes(gross, pensionRate, employerPensionRate) {
+            const personalAllowance = 12570;
+            const basicLimit = 50270;
+            const NI_lower = 12570;
+            const NI_upper = 50270;
+
+            const basicRate = 0.20;
+            const NI_main_rate = 0.08;
+            const NI_upper_rate = 0.02;
+
+            const loanThreshold = 28470;
+            const loanRate = 0.09;
+
+            const pensionContribution = pensionRate * gross;
+            const taxable = Math.max(0, gross - pensionContribution);
+
+            let tax = 0;
+            if (taxable > personalAllowance) {
+                const taxableIncome = taxable - personalAllowance;
+                const basicBandWidth = basicLimit - personalAllowance;
+                if (taxableIncome <= basicBandWidth) tax = taxableIncome * basicRate;
+                else tax = (basicBandWidth * basicRate) + ((taxableIncome - basicBandWidth) * 0.40);
+            }
+
+            let ni = 0;
+            if (taxable > NI_lower) {
+                if (taxable <= NI_upper) ni = (taxable - NI_lower) * NI_main_rate;
+                else ni = ((NI_upper - NI_lower) * NI_main_rate) + ((taxable - NI_upper) * NI_upper_rate);
+            }
+
+            const loan = Math.max(0, (taxable - loanThreshold) * loanRate);
+            const net = gross - pensionContribution - tax - ni - loan;
+
+            return {
+                net,
+                pensionContribution,
+                tax,
+                ni,
+                loan,
+                employerPension: employerPensionRate * gross
+            };
+        }
+
+        function renderReceipt() {
+            const age = parseInt(document.getElementById('receipt-age-slider').value);
+            document.getElementById('receipt-age-val').innerText = age;
+
+            const total = Object.values(budgetSplits).reduce((a, b) => a + b, 0);
+            if (total !== 100) return; // Don't update if data is invalid
+
+            const data = runSimulation();
+            const startAge = getVal('start_age');
+            const index = age - startAge;
+
+            const realSalary = data.real_salary[index];
+            const pensionEmployeeRate = getVal('pension_employee_rate');
+            const pensionEmployerRate = getVal('pension_employer_rate');
+
+            const details = calculateDetailedTaxes(realSalary, pensionEmployeeRate, pensionEmployerRate);
+            const fmt = (v) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+
+            const container = document.getElementById('tax-receipt');
+            container.innerHTML = `
+                <div class="receipt-header">
+                    <h2 style="margin-bottom: 0.5rem;">TAX & PAY RECEIPT</h2>
+                    <p style="font-size: 0.8rem; color: #64748b;">PROJECTED FOR AGE ${age}</p>
+                </div>
+
+                <div class="receipt-row" style="font-weight: bold; font-size: 0.75rem; color: #64748b;">
+                    <span style="flex: 2;">DESCRIPTION</span>
+                    <span style="flex: 1; text-align: right;">MONTHLY</span>
+                    <span style="flex: 1; text-align: right;">YEARLY</span>
+                </div>
+                <div class="receipt-divider"></div>
+
+                <div class="receipt-row"><span style="flex: 2;">Gross Salary</span> <span style="flex: 1; text-align: right;">${fmt(realSalary / 12)}</span> <span style="flex: 1; text-align: right;">${fmt(realSalary)}</span></div>
+                
+                <div class="receipt-divider"></div>
+                <p style="font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: bold;">DEDUCTIONS (EMPLOYEE)</p>
+                <div class="receipt-row"><span style="flex: 2;">Pension (${(pensionEmployeeRate * 100).toFixed(0)}%)</span> <span style="flex: 1; text-align: right;">-${fmt(details.pensionContribution / 12)}</span> <span style="flex: 1; text-align: right;">-${fmt(details.pensionContribution)}</span></div>
+                <div class="receipt-row"><span style="flex: 2;">Income Tax</span> <span style="flex: 1; text-align: right;">-${fmt(details.tax / 12)}</span> <span style="flex: 1; text-align: right;">-${fmt(details.tax)}</span></div>
+                <div class="receipt-row"><span style="flex: 2;">National Insurance</span> <span style="flex: 1; text-align: right;">-${fmt(details.ni / 12)}</span> <span style="flex: 1; text-align: right;">-${fmt(details.ni)}</span></div>
+                <div class="receipt-row"><span style="flex: 2;">Student Loan</span> <span style="flex: 1; text-align: right;">-${fmt(details.loan / 12)}</span> <span style="flex: 1; text-align: right;">-${fmt(details.loan)}</span></div>
+
+                <div class="receipt-divider"></div>
+                <p style="font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: bold;">EMPLOYER CONTRIBUTIONS</p>
+                <div class="receipt-row"><span style="flex: 2;">Employer Pension (${(pensionEmployerRate * 100).toFixed(0)}%)</span> <span style="flex: 1; text-align: right;">${fmt(details.employerPension / 12)}</span> <span style="flex: 1; text-align: right;">${fmt(details.employerPension)}</span></div>
+
+                <div class="receipt-divider"></div>
+                <div class="receipt-row receipt-total" style="font-size: 1rem;">
+                    <span style="flex: 2;">NET TAKE-HOME</span> 
+                    <span style="flex: 1; text-align: right;">${fmt(details.net / 12)}</span> 
+                    <span style="flex: 1; text-align: right;">${fmt(details.net)}</span>
+                </div>
+
+                <div class="receipt-divider"></div>
+                <p style="font-size: 0.75rem; margin-bottom: 0.5rem; font-weight: bold;">BUDGET ALLOCATION</p>
+                <div class="receipt-row"><span style="flex: 2;">Needs (${budgetSplits.needs}%)</span> <span style="flex: 1; text-align: right;">${fmt(details.net * budgetSplits.needs / 100 / 12)}</span> <span style="flex: 1; text-align: right;">${fmt(details.net * budgetSplits.needs / 100)}</span></div>
+                <div class="receipt-row"><span style="flex: 2;">ISA (${budgetSplits.isa}%)</span> <span style="flex: 1; text-align: right;">${fmt(details.net * budgetSplits.isa / 100 / 12)}</span> <span style="flex: 1; text-align: right;">${fmt(details.net * budgetSplits.isa / 100)}</span></div>
+                <div class="receipt-row"><span style="flex: 2;">Savings (${budgetSplits.savings}%)</span> <span style="flex: 1; text-align: right;">${fmt(details.net * budgetSplits.savings / 100 / 12)}</span> <span style="flex: 1; text-align: right;">${fmt(details.net * budgetSplits.savings / 100)}</span></div>
+                <div class="receipt-row"><span style="flex: 2;">Wants (${budgetSplits.wants}%)</span> <span style="flex: 1; text-align: right;">${fmt(details.net * budgetSplits.wants / 100 / 12)}</span> <span style="flex: 1; text-align: right;">${fmt(details.net * budgetSplits.wants / 100)}</span></div>
+                
+                <div class="receipt-divider" style="margin-top: 2rem;"></div>
+                <p style="text-align: center; font-size: 0.7rem;">THANK YOU FOR PLANNING YOUR FUTURE</p>
+            `;
+        }
+
+        // --- Init ---
         initUI();
+        initSplitControls();
         updateChart();
+
+        // Sync age slider range with simulation range
+        function syncAgeSlider() {
+            const slider = document.getElementById('receipt-age-slider');
+            const start = getVal('start_age');
+            const years = getVal('years');
+            slider.min = start;
+            slider.max = start + years - 1;
+            if (slider.value < start) slider.value = start;
+            if (slider.value > slider.max) slider.value = slider.max;
+        }
+
+        document.getElementById('receipt-age-slider').addEventListener('input', renderReceipt);
+
+        // Update range whenever core inputs change
+        const coreInputs = ['start_age', 'years', 'isa_contribution_rate'];
+        coreInputs.forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                syncAgeSlider();
+                if (id === 'isa_contribution_rate') updateBudgetSplitsFromSettings();
+                renderReceipt();
+            });
+        });
+
+        syncAgeSlider();
+        updateBudgetSplitsFromSettings();
+        renderReceipt();
 
         // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {

@@ -66,8 +66,8 @@ def net_pay(gross):
     loan_threshold = 28470
     loan_rate = 0.09
 
-    pension_contrib = 0.05 * gross
-    taxable = max(0, gross - pension_contrib)
+    pension_contribution = 0.05 * gross
+    taxable = max(0, gross - pension_contribution)
 
     # Income tax
     if taxable <= personal_allowance:
@@ -86,8 +86,57 @@ def net_pay(gross):
     # Student loan
     loan = max(0, (taxable - loan_threshold) * loan_rate)
 
-    net = gross - pension_contrib - tax - ni - loan
-    return net
+    net = gross - pension_contribution - tax - ni - loan
+    return net, pension_contribution, tax, ni, loan
+
+def print_tax_receipt(gross, needs_rate=0.60, isa_rate=0.15, savings_rate=0.05, wants_rate=0.20):
+    net, pension, tax, ni, loan = net_pay(gross)
+
+    employer_pension = 0.10 * gross
+
+    monthly_net = net / 12
+    monthly_gross = gross / 12
+
+    # Split net pay
+    needs = net * needs_rate
+    isa_contribution = net * isa_rate
+    savings = net * savings_rate
+    wants = net * wants_rate
+
+    monthly_needs = needs / 12
+    monthly_isa = isa_contribution / 12
+    monthly_savings = savings / 12
+    monthly_wants = wants / 12
+
+    print("\n" + "=" * 45)
+    print("           TAX & PAY RECEIPT")
+    print("=" * 45)
+
+    print(f"Gross salary (annual):      £{gross:,.2f}")
+    print(f"Gross salary (monthly):     £{monthly_gross:,.2f}")
+    print("-" * 45)
+
+    print("DEDUCTIONS (EMPLOYEE)")
+    print(f"Pension (5%):               £{pension:,.2f}")
+    print(f"Income tax:                 £{tax:,.2f}")
+    print(f"National Insurance:         £{ni:,.2f}")
+    print(f"Student loan (Plan 2):      £{loan:,.2f}")
+    print("-" * 45)
+
+    print("EMPLOYER CONTRIBUTIONS")
+    print(f"Employer pension (10%):     £{employer_pension:,.2f}")
+    print("-" * 45)
+
+    print(f"Net take-home (annual):     £{net:,.2f}")
+    print(f"Net take-home (monthly):    £{monthly_net:,.2f}")
+    print("-" * 45)
+
+    print("NET PAY BUDGET ALLOCATION")
+    print(f"Needs ({needs_rate*100:.0f}%):                £{needs:,.2f} (£{monthly_needs:,.2f}/month)")
+    print(f"ISA / Investment ({isa_rate*100:.0f}%):     £{isa_contribution:,.2f} (£{monthly_isa:,.2f}/month)")
+    print(f"Savings ({savings_rate*100:.0f}%):              £{savings:,.2f} (£{monthly_savings:,.2f}/month)")
+    print(f"Wants / Fun ({wants_rate*100:.0f}%):          £{wants:,.2f} (£{monthly_wants:,.2f}/month)")
+    print("=" * 45)
 
 # =========================
 # Tracking lists (year 0)
@@ -95,7 +144,7 @@ def net_pay(gross):
 
 nominal_salary = [base_salary]
 real_salary = [base_salary]
-net_salary = [net_pay(base_salary)]
+net_salary = [net_pay(base_salary)[0]]
 
 pension = [pension_base]
 isa = [isa_base]
@@ -119,7 +168,7 @@ for year in range(1, years):
     # Salaries
     nominal_salary.append(nominal_salary[-1] * (1 + growth_rate))
     real_salary.append(real_salary[-1] * (1 + growth_rate - inflation))
-    current_net = net_pay(real_salary[-1])
+    current_net = net_pay(real_salary[-1])[0]
     net_salary.append(current_net)
 
     # Pension / ISA / Cash
@@ -139,15 +188,15 @@ for year in range(1, years):
 
     # ---------- LISA ----------
     if not house_bought:
-        lisa_contrib = min(lisa_max_contribution, 0.2 * current_net)
-        bonus = lisa_contrib * lisa_bonus_rate
+        lisa_contribution = min(lisa_max_contribution, 0.2 * current_net)
+        bonus = lisa_contribution * lisa_bonus_rate
     else:
-        lisa_contrib = 0
+        lisa_contribution = 0
         bonus = 0
 
     lisa.append(
         lisa[-1] * (1 + lisa_rate - inflation) +
-        lisa_contrib +
+        lisa_contribution +
         bonus
     )
 
@@ -228,4 +277,24 @@ plt.title("Real Net Worth Growth")
 plt.grid(True)
 plt.show()
 
-print(home_equity)
+# =========================
+# Tax Receipt Interactive
+# =========================
+
+while True:
+    print("\n--- Tax Receipt Viewer ---")
+    try:
+        user_age = int(input(f"Enter age to view receipt ({start_age} to {start_age + years - 1}) or 0 to exit: "))
+        if user_age == 0:
+            break
+        
+        index = user_age - start_age
+        if 0 <= index < len(real_salary):
+            current_gross = real_salary[index]
+            print_tax_receipt(current_gross)
+        else:
+            print("Invalid age range.")
+    except ValueError:
+        print("Please enter a valid number.")
+
+print(net_salary)
