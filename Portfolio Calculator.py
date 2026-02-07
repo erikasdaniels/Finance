@@ -35,7 +35,9 @@ lisa_rate = 0.07
 # Contribution rules
 pension_contribution_rate = 0.15
 isa_contribution_rate = 0.15
-lisa_max_contribution = 4000
+lisa_contribution_rate = 0.05  # % of net pay
+lisa_monthly_amount = 0        # Optional fixed monthly amount (set > 0 to override rate)
+lisa_max_bonus_limit = 4000    # Only first £4k gets bonus
 lisa_bonus_rate = 0.25
 
 # =========================
@@ -187,17 +189,36 @@ for year in range(1, years):
     )
 
     # ---------- LISA ----------
+    actual_lisa_annual = 0
+    lisa_bonus = 0
+    
     if not house_bought:
-        lisa_contribution = min(lisa_max_contribution, 0.2 * current_net)
-        bonus = lisa_contribution * lisa_bonus_rate
-    else:
-        lisa_contribution = 0
-        bonus = 0
+        current_house_price = property_price_start * ((1 + house_price_growth - inflation) ** year)
+        target = current_house_price * deposit_rate
+        projected_with_interest = lisa[-1] * (1 + lisa_rate - inflation)
+        
+        if projected_with_interest < target:
+            needed = target - projected_with_interest
+            
+            # User defined max
+            if lisa_monthly_amount > 0:
+                max_annual = lisa_monthly_amount * 12
+            else:
+                max_annual = lisa_contribution_rate * current_net
+            
+            # Needed contrib accounting for 25% bonus
+            if needed <= 5000:
+                needed_contrib = needed / 1.25
+            else:
+                needed_contrib = needed - 1000
+                
+            actual_lisa_annual = min(max_annual, needed_contrib)
+            lisa_bonus = min(actual_lisa_annual, 4000) * lisa_bonus_rate
 
     lisa.append(
         lisa[-1] * (1 + lisa_rate - inflation) +
-        lisa_contribution +
-        bonus
+        actual_lisa_annual +
+        lisa_bonus
     )
 
     # ---------- PROPERTY ----------
